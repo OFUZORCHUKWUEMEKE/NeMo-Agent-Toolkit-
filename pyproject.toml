@@ -1,0 +1,42 @@
+[build-system]
+requires = ["setuptools>=45", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "nemo-agent-toolkit-learning"
+version = "0.1.0"
+description = "Progressive learning path for NVIDIA NeMo Agent Toolkit"
+requires-python = ">=3.10"
+dependencies = [
+    "nemo-toolkit>=0.1.0",
+    "python-dotenv>=0.19.0",
+    "pydantic>=2.0",
+    "requests>=2.28.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "pytest-asyncio>=0.21.0",
+    "black>=23.0",
+    "isort>=5.12.0",
+    "ruff>=0.1.0",
+    "mypy>=1.0",
+]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+
+[tool.black]
+line-length = 100
+target-version = ['py310']
+
+[tool.isort]
+profile = "black"
+line_length = 100
+
+[tool.mypy]
+python_version = "3.10"
+strict = true
+warn_return_any = true
