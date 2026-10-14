@@ -1,0 +1,21 @@
+[build-system]
+build-backend = "setuptools.build_meta"
+requires = ["setuptools >= 64"]
+
+[project]
+name = "docs_qa_agent"
+version = "0.1.0"
+description = "Docs Q&A agent built on the NeMo Agent Toolkit"
+requires-python = ">=3.11,<3.14"
+dependencies = [
+  "nvidia-nat[langchain]~=1.9",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[project.entry-points.'nat.components']
+docs_qa_agent = "docs_qa_agent.register"
