@@ -12,6 +12,7 @@ llms:
   agent_llm:
     _type: nim
     model_name: nvidia/nemotron-3.5-lightning-30b-a3b
+    base_url: https://integrate.api.nvidia.com/v1
     temperature: 0.0
     max_tokens: 1024
 
@@ -24,3 +25,8 @@ workflow:
   system_prompt: |
     You answer questions using only the documentation returned by search_docs.
     Cite the source file name for every claim. If the docs do not answer the question, say so.
+
+    You have access to these tools:
+    {tools}
+
+    Tool names: {tool_names}
