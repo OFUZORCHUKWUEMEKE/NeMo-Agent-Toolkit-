@@ -1,0 +1,75 @@
+# Level 1: Foundations - Specific Configuration
+
+level: 1
+name: "Foundations"
+description: "Learn basic agent concepts and initialization"
+
+# Override global defaults for this level
+agent_defaults:
+  model_name: "simple"
+  temperature: 0.5
+  max_tokens: 256
+  enable_history: true
+  max_history_messages: 50
+
+# Projects in this level
+projects:
+  hello_agent:
+    name: "Hello Agent"
+    file: "projects/01_hello_agent.py"
+    description: "Basic agent initialization and chat"
+    difficulty: "Beginner"
+    duration_hours: 1.5
+    learning_objectives:
+      - "Agent initialization with AgentConfig"
+      - "Implementing _process_message() method"
+      - "Conversation history management"
+      - "Interactive CLI patterns"
+    config:
+      model_name: "simple"
+      system_prompt: "You are a simple agent that echoes and acknowledges user input."
+      temperature: 0.5
+      max_tokens: 256
+
+  echo_plus_agent:
+    name: "Echo Plus Agent"
+    file: "projects/02_echo_plus_agent.py"
+    description: "Personality-based agent responses"
+    difficulty: "Beginner"
+    duration_hours: 1.5
+    learning_objectives:
+      - "Custom system prompts for personalities"
+      - "Response formatting and metadata"
+      - "Agent statistics and analytics"
+      - "Enum-based configuration"
+    personalities:
+      friendly:
+        system_prompt: "You are a cheerful and friendly assistant. Always respond with warmth and enthusiasm."
+        temperature: 0.8
+      professional:
+        system_prompt: "You are a professional business consultant. Respond in formal, clear language."
+        temperature: 0.5
+      pirate:
+        system_prompt: "You are a pirate who speaks like a buccaneer. Use pirate vocabulary."
+        temperature: 0.9
+      wizard:
+        system_prompt: "You are a wise wizard. Speak in mystical, poetic language."
+        temperature: 0.8
+      debug:
+        system_prompt: "You are a debugging assistant. Break problems into diagnostic steps."
+        temperature: 0.4
+
+# Logging for this level
+logging:
+  level: "INFO"
+  file:
+    enabled: true
+    directory: "logs/level_1"
+
+# Testing configuration
+testing:
+  enabled: true
+  test_directory: "../../tests/level_1"
+  test_patterns:
+    - "test_*.py"
+    - "*_test.py"
