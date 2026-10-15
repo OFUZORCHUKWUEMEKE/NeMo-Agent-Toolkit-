@@ -243,13 +243,18 @@ Additions: {data['additions']}, Deletions: {data['deletions']}"""
             })
 
         # Check for recursion without base case
-        if re.search(r'def\s+(\w+).*?return\s+\1\s*\(', diff):
-            issues.append({
-                "severity": "🔴 CRITICAL",
-                "issue": "Recursion without clear base case",
-                "impact": "Stack overflow risk, infinite recursion",
-                "fix": "Add base case condition before recursive call"
-            })
+        # Extract function name and look for recursive calls
+        def_match = re.search(r'def\s+(\w+)\s*\(', diff)
+        if def_match:
+            func_name = def_match.group(1)
+            # Look for return statement that calls the same function
+            if re.search(f'return.*?{func_name}\s*\(', diff, re.DOTALL):
+                issues.append({
+                    "severity": "🔴 CRITICAL",
+                    "issue": "Recursion without clear base case",
+                    "impact": "Stack overflow risk, infinite recursion",
+                    "fix": "Add base case condition before recursive call"
+                })
 
         # Check for unbounded data structures
         if '.append(' in diff and 'while' in diff:
