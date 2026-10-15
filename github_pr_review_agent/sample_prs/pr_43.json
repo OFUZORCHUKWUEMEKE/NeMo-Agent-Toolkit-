@@ -1,0 +1,28 @@
+{
+  "number": 43,
+  "title": "Refactor database connection pooling",
+  "author": "bob",
+  "description": "Improves database connection efficiency by implementing connection pooling with configurable pool size. Fixes connection leak issues in high-load scenarios.",
+  "additions": 210,
+  "deletions": 130,
+  "files": [
+    {
+      "filename": "src/db/connection_pool.py",
+      "additions": 120,
+      "deletions": 0,
+      "patch": "--- a/src/db/connection_pool.py\n+++ b/src/db/connection_pool.py\n@@ -0,0 +1,40 @@\n+from queue import Queue\n+import psycopg2\n+\n+class ConnectionPool:\n+    def __init__(self, pool_size: int = 5, db_config: dict = None):\n+        self.pool_size = pool_size\n+        self.db_config = db_config or {}\n+        self.pool = Queue(maxsize=pool_size)\n+        self._initialize_pool()\n+    \n+    def _initialize_pool(self):\n+        for _ in range(self.pool_size):\n+            conn = psycopg2.connect(**self.db_config)\n+            self.pool.put(conn)\n+    \n+    def get_connection(self):\n+        return self.pool.get(timeout=5)\n+    \n+    def return_connection(self, conn):\n+        self.pool.put(conn)\n+    \n+    def close_all(self):\n+        while not self.pool.empty():\n+            conn = self.pool.get_nowait()\n+            conn.close()"
+    },
+    {
+      "filename": "src/db/__init__.py",
+      "additions": 30,
+      "deletions": 50,
+      "patch": "--- a/src/db/__init__.py\n+++ b/src/db/__init__.py\n@@ -1,30 +1,15 @@\n-import psycopg2\n-\n-# Old singleton connection approach (removed)\n-_connection = None\n-\n-def get_connection():\n-    global _connection\n-    if _connection is None:\n-        _connection = psycopg2.connect(...)\n-    return _connection\n+from src.db.connection_pool import ConnectionPool\n+\n+# Initialize connection pool\n+pool = ConnectionPool(pool_size=10)"
+    },
+    {
+      "filename": "tests/test_connection_pool.py",
+      "additions": 60,
+      "deletions": 0,
+      "patch": "--- a/tests/test_connection_pool.py\n+++ b/tests/test_connection_pool.py\n@@ -0,0 +1,20 @@\n+import pytest\n+from unittest.mock import Mock, patch\n+from src.db.connection_pool import ConnectionPool\n+\n+@patch('psycopg2.connect')\n+def test_pool_initialization(mock_connect):\n+    pool = ConnectionPool(pool_size=3)\n+    assert mock_connect.call_count == 3\n+\n+def test_get_return_connection():\n+    mock_conn = Mock()\n+    pool = ConnectionPool(pool_size=1)\n+    pool.pool.put(mock_conn)\n+    conn = pool.get_connection()\n+    assert conn == mock_conn"
+    }
+  ]
+}
