@@ -1,3 +1,4 @@
+import re
 import subprocess
 from pathlib import Path
 
@@ -174,6 +175,103 @@ Additions: {data['additions']}, Deletions: {data['deletions']}"""
             return f"✓ Posted review comment on {filename} in PR #{pr_number}"
         return f"Failed to post comment: {resp.status_code}"
 
+    def generate_tests(self, pr_number: int, filename: str) -> str:
+        """Generate unit tests for code changes in a file."""
+        diff = self.get_file_diff(pr_number, filename)
+        if "error" in diff or not diff:
+            return "Could not get file diff for test generation"
+
+        # Extract function definitions from the diff
+        func_pattern = r'def\s+(\w+)\s*\((.*?)\)\s*->\s*(\w+):'
+        functions = re.findall(func_pattern, diff)
+
+        if not functions:
+            return "No functions found in diff to generate tests for"
+
+        # Generate test template for each function
+        tests = ["# Generated test cases\nimport pytest\n"]
+        for func_name, params, return_type in functions:
+            tests.append(f"\n# Tests for {func_name}")
+            tests.append(f"def test_{func_name}_basic():")
+            tests.append(f"    # TODO: Add test for basic case")
+            tests.append(f"    # TODO: Verify {return_type} return type")
+            tests.append(f"    pass\n")
+            tests.append(f"def test_{func_name}_edge_cases():")
+            tests.append(f"    # TODO: Test with empty/null inputs")
+            tests.append(f"    # TODO: Test boundary conditions")
+            tests.append(f"    pass\n")
+            tests.append(f"def test_{func_name}_errors():")
+            tests.append(f"    # TODO: Test error handling")
+            tests.append(f"    pass\n")
+
+        return "\n".join(tests)
+
+    def analyze_performance(self, pr_number: int, filename: str) -> str:
+        """Analyze code for performance issues."""
+        diff = self.get_file_diff(pr_number, filename)
+        if "error" in diff or not diff:
+            return "Could not get file diff for performance analysis"
+
+        issues = []
+
+        # Check for nested loops (O(n²) complexity)
+        nested_loop_pattern = r'for\s+\w+\s+in\s+.*?:\s*.*?for\s+\w+\s+in\s+'
+        if re.search(nested_loop_pattern, diff, re.DOTALL):
+            issues.append({
+                "severity": "⚠️ WARNING",
+                "issue": "Nested loops detected",
+                "impact": "Potential O(n²) or worse complexity",
+                "fix": "Consider using sets, dicts, or hashmap for O(1) lookups"
+            })
+
+        # Check for string concatenation in loops
+        if re.search(r'for\s+\w+.*?:\s*.*?=\s*.*?\+\s*["\']', diff):
+            issues.append({
+                "severity": "⚠️ WARNING",
+                "issue": "String concatenation in loop",
+                "impact": "Inefficient - strings are immutable, creates new object each time",
+                "fix": "Use list.append() + ''.join() instead"
+            })
+
+        # Check for list comprehension (good pattern)
+        if '[' in diff and 'for' in diff and 'in' in diff:
+            issues.append({
+                "severity": "✅ GOOD",
+                "issue": "List comprehension detected",
+                "impact": "More efficient and readable than loops",
+                "fix": "Keep using this pattern!"
+            })
+
+        # Check for recursion without base case
+        if re.search(r'def\s+(\w+).*?return\s+\1\s*\(', diff):
+            issues.append({
+                "severity": "🔴 CRITICAL",
+                "issue": "Recursion without clear base case",
+                "impact": "Stack overflow risk, infinite recursion",
+                "fix": "Add base case condition before recursive call"
+            })
+
+        # Check for unbounded data structures
+        if '.append(' in diff and 'while' in diff:
+            issues.append({
+                "severity": "⚠️ WARNING",
+                "issue": "Unbounded append in loop",
+                "impact": "Memory usage could grow unexpectedly",
+                "fix": "Consider adding max size checks or cleanup"
+            })
+
+        if not issues:
+            return "No performance issues detected! Code looks efficient. ✅"
+
+        # Format results
+        result = [f"Performance Analysis for {filename}:\n"]
+        for issue in issues:
+            result.append(f"{issue['severity']} {issue['issue']}")
+            result.append(f"  Impact: {issue['impact']}")
+            result.append(f"  Fix: {issue['fix']}\n")
+
+        return "\n".join(result)
+
 
 @register_function(config_type=ReviewPRConfig)
 async def review_pr(config: ReviewPRConfig, builder: Builder):
@@ -216,6 +314,14 @@ async def review_pr(config: ReviewPRConfig, builder: Builder):
         """Commit all changes and push to the PR branch."""
         return tools.commit_and_push(message)
 
+    async def _generate_tests(pr_number: int, filename: str) -> str:
+        """Generate unit test templates for new/changed functions in a file. Extracts function signatures and creates test stubs."""
+        return tools.generate_tests(pr_number, filename)
+
+    async def _analyze_perf(pr_number: int, filename: str) -> str:
+        """Analyze code for performance issues: nested loops, string concatenation, recursion without base case, unbounded data structures."""
+        return tools.analyze_performance(pr_number, filename)
+
     # Yield each tool as FunctionInfo
     yield FunctionInfo.from_fn(_list_prs, description=_list_prs.__doc__)
     yield FunctionInfo.from_fn(_get_pr_info, description=_get_pr_info.__doc__)
@@ -226,3 +332,5 @@ async def review_pr(config: ReviewPRConfig, builder: Builder):
     yield FunctionInfo.from_fn(_checkout, description=_checkout.__doc__)
     yield FunctionInfo.from_fn(_write, description=_write.__doc__)
     yield FunctionInfo.from_fn(_commit, description=_commit.__doc__)
+    yield FunctionInfo.from_fn(_generate_tests, description=_generate_tests.__doc__)
+    yield FunctionInfo.from_fn(_analyze_perf, description=_analyze_perf.__doc__)
