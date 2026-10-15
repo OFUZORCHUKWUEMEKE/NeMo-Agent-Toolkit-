@@ -1,411 +1,421 @@
 # GitHub PR Review Agent
 
-An automated code review agent built with NVIDIA's NeMo Agent Toolkit. This agent reviews pull requests by analyzing code changes, checking for best practices, and providing constructive feedback.
+An AI agent that automatically reviews GitHub pull requests, identifies issues, and applies fixes directly to the code. Built with NVIDIA's NeMo Agent Toolkit.
 
 ## Overview
 
-The PR Review Agent demonstrates a complete AI agent workflow:
-- **Tools** - Functions the agent can call (list PRs, get diffs, submit comments, write code, commit)
-- **Reasoning** - ReAct pattern (think → act → observe → repeat)
-- **Integration** - Works with real GitHub PRs, clones the repo, edits code, and pushes commits
+**Status**: ✅ Complete  
+**Difficulty**: Intermediate  
+**Duration**: 20-30 minutes to run your first review
 
-The agent can both **review** PRs (give feedback) and **fix** bugs (write code and commit).
+This agent demonstrates:
+- Reading GitHub PR data via API
+- Reasoning about code quality (ReAct loop)
+- Writing and committing code changes
+- Git operations from within an agent
 
-## Architecture
+## Quick Start
 
-### Key Components
+### Prerequisites
 
-#### 1. **Tools** (`review_pr.py`)
-The agent has access to 9 tools:
+- Python 3.10+
+- Git installed
+- GitHub personal access token ([create here](https://github.com/settings/tokens))
+- NeMo Agent Toolkit installed
 
-**Read Tools** (GitHub API):
-```python
-_list_prs()                          # List open PRs
-_get_pr_info(pr_number)              # Get PR title, author, description
-_get_files(pr_number)                # List changed files with stats
-_get_diff(pr_number, filename)       # Get code diff for a file
-_submit_comment(pr_number, ...)      # Post review feedback
+### Setup
+
+1. **Install dependencies**:
+```bash
+cd github_pr_review_agent
+pip install -r requirements.txt
 ```
 
-**Write Tools** (Git operations):
-```python
-_clone()                             # Clone repo locally
-_checkout(pr_number)                 # Check out PR branch
-_write(filepath, content)            # Write/edit a file
-_commit(message)                     # Commit and push changes
+2. **Set GitHub token**:
+```bash
+export GITHUB_TOKEN="ghp_your_token_here"
 ```
 
-Each tool:
-- Returns a status message (string)
-- Handles errors gracefully
-- Read tools use GitHub API; write tools use git CLI
-
-#### 2. **Authentication** (`GitHubTools`)
-Uses GitHub personal access token:
-```python
-headers = {"Authorization": f"token {github_token}"}
-requests.get(url, headers=headers)  # All API calls authenticated
-```
-
-#### 3. **Configuration** (`config.yml`)
-Specifies:
-- GitHub credentials (token, repo owner, repo name)
-- LLM to use (Nemotron)
-- Workflow (ReAct reasoning loop)
-- System prompt for the agent
-
-## How It Works
-
-### Step-by-Step Flow
-
-1. **User Input**: "Review PR #42"
-
-2. **Agent Reasoning Loop** (ReAct):
-   ```
-   Thought: I need to review PR #42. First, let me get its info.
-   Action: Use _get_pr_info tool with pr_number=42
-   Observation: PR is "Add user authentication module" with 4 files
-   
-   Thought: Now I'll check what files changed
-   Action: Use _get_files tool with pr_number=42
-   Observation: jwt_handler.py, auth_middleware.py, test_auth.py, requirements.txt
-   
-   Thought: Let me examine the JWT handler code
-   Action: Use _get_diff tool with pr_number=42, filename="src/auth/jwt_handler.py"
-   Observation: [code diff shown]
-   
-   Thought: This looks solid but missing input validation...
-   Action: Use _submit_comment to post feedback
-   [repeat for each file]
-   ```
-
-3. **Output**: Structured review with comments
-
-### Key Concepts
-
-**Tools as Agent Actions**
-- Each tool is registered with a description
-- Agent reads descriptions and decides which tool to call
-- Tools return structured data (strings, JSON)
-
-**ReAct Workflow**
-- **Reason**: LLM thinks about what to do next
-- **Act**: LLM calls a tool
-- **Observe**: Agent sees tool output
-- **Repeat**: Loop until task is complete
-
-**Configuration-Driven**
-- Agents defined entirely in YAML
-- No code changes needed to swap models or tools
-- Easy to experiment with different prompts
-
-## Setup
-
-### 1. Get a GitHub Token
-
-1. Go to [GitHub Settings → Personal Access Tokens](https://github.com/settings/tokens)
-2. Click "Generate new token"
-3. Select scopes: `repo` (for PR access)
-4. Copy the token
-
-### 2. Configure the Agent
-
-Edit `config.yml`:
+3. **Configure the agent** (`configs/config.yml`):
 ```yaml
 functions:
   review_pr:
-    github_token: ${GITHUB_TOKEN}  # Set via env var
-    repo_owner: your-org            # Your GitHub org/user
-    repo_name: your-repo            # Your repo name
+    github_token: ${GITHUB_TOKEN}
+    repo_owner: your-org      # Change this
+    repo_name: your-repo      # Change this
 ```
 
-### 3. Set Environment Variable
+### Run
+
+**Review only (give feedback)**:
+```bash
+nat run --config_file configs/config.yml \
+  --input "Review PR #5 for security issues"
+```
+
+**Review and fix (apply changes)**:
+```bash
+nat run --config_file configs/config.yml \
+  --input "Review PR #5 and fix any bugs"
+```
+
+## How It Works
+
+### The Agent's Toolkit (9 Tools)
+
+| Tool | Purpose | Type |
+|------|---------|------|
+| `list_prs()` | List open PRs | Read |
+| `get_pr_info(number)` | Get PR title, author, description | Read |
+| `get_files(number)` | List changed files with stats | Read |
+| `get_diff(number, filename)` | Get code diff for a file | Read |
+| `submit_comment(number, filename, comment)` | Post review feedback | Read |
+| `clone()` | Clone repo locally | Write |
+| `checkout(number)` | Switch to PR branch | Write |
+| `write(filepath, content)` | Edit a file | Write |
+| `commit(message)` | Commit and push changes | Write |
+
+### The Reasoning Loop (ReAct)
+
+```
+1. THINK: Agent reads PR info and thinks about what needs review
+2. ACT: Agent calls tools (read diffs, understand code)
+3. OBSERVE: Agent gets results back
+4. REPEAT: Loop continues until done
+
+If review finds bugs:
+1. THINK: "This needs fixing"
+2. ACT: Call clone() → checkout() → write() → commit()
+3. OBSERVE: Changes pushed to GitHub
+4. DONE: Task complete
+```
+
+### Example Execution
 
 ```bash
-export GITHUB_TOKEN="ghp_xxxxxxxxxxxxxxxxxxxx"
+$ nat run --config_file configs/config.yml \
+    --input "Review PR #5 and fix bugs"
+
+Thought: I need to review PR #5. Let me get its info.
+Action: get_pr_info(5)
+Observation: PR #5: Add authentication. 3 files changed.
+
+Thought: What files were modified?
+Action: get_files(5)
+Observation: src/auth.py (+150/-20), src/jwt.py (+80/-10), tests/ ...
+
+Thought: Let me examine the main changes.
+Action: get_diff(5, "src/auth.py")
+Observation: [Shows code diff]
+
+Thought: I see a potential issue. Let me fix it.
+Action: clone()
+Observation: ✓ Cloned repo
+
+Action: checkout(5)
+Observation: ✓ Checked out branch
+
+Action: write("src/jwt.py", "def validate(...)...")
+Observation: ✓ Wrote file
+
+Action: commit("Add error handling to JWT validator")
+Observation: ✓ Committed and pushed
+
+Final: Review complete. Fixed jwt.py error handling.
 ```
 
-## Run the Agent
+## Architecture
 
-```bash
-# From repo root
-nat run --config_file github_pr_review_agent/configs/config.yml \
-  --input "Review PR #1"
+### File Structure
+
+```
+github_pr_review_agent/
+├── src/github_pr_review_agent/
+│   ├── __init__.py
+│   ├── review_pr.py        # Tool definitions + GitHub/Git integration
+│   └── register.py         # Registers tools with NAT
+├── configs/
+│   └── config.yml          # Agent configuration
+├── sample_prs/
+│   ├── pr_42.json          # Example PR data (for testing)
+│   └── pr_43.json
+├── pyproject.toml
+├── requirements.txt
+└── README.md               # This file
 ```
 
-### Available Commands
+### Code Components
 
-**Review-Only (Give Feedback)**
-```bash
-# Review a PR and post comments
-nat run --config_file github_pr_review_agent/configs/config.yml \
-  --input "Review PR #5 for security issues and suggest improvements"
+**`review_pr.py` - Core Logic**
 
-# List open PRs
-nat run --config_file github_pr_review_agent/configs/config.yml \
-  --input "What PRs are open? Which one should I focus on?"
-```
+1. **ReviewPRConfig** - Validated settings from YAML
+2. **GitHubTools** - All interactions with GitHub API + Git CLI
+3. **Tool functions** - Async wrappers the agent calls
+4. **@register_function** - Decorator that registers tools with NAT
 
-**Write-and-Fix (Apply Code Changes)**
-```bash
-# Fix a bug in the PR
-nat run --config_file github_pr_review_agent/configs/config.yml \
-  --input "Review PR #5 and fix any obvious bugs"
-
-# Add a missing feature
-nat run --config_file github_pr_review_agent/configs/config.yml \
-  --input "PR #5 is missing error handling. Add proper error checks."
-
-# Apply linting fixes
-nat run --config_file github_pr_review_agent/configs/config.yml \
-  --input "Review PR #5 and fix any style or formatting issues"
-```
-
-**Combined (Review Then Fix)**
-```bash
-# Full workflow: understand, review, then fix
-nat run --config_file github_pr_review_agent/configs/config.yml \
-  --input "Thoroughly review PR #5. Identify issues and apply fixes directly to the code."
-```
-
-## Understanding the Code
-
-### 1. Tool Registration (`review_pr.py`)
-
-```python
-@register_function(config_type=ReviewPRConfig)
-async def review_pr(config: ReviewPRConfig, builder: Builder):
-    # Define tool functions
-    async def _get_pr_info(pr_number: int) -> str:
-        """Get PR details: title, author, description, and file statistics."""
-        return tools.get_pr_info(pr_number)
-    
-    # Register tool with description
-    yield FunctionInfo.from_fn(_get_pr_info, description=_get_pr_info.__doc__)
-```
-
-**Key points:**
-- `@register_function` decorator registers with NAT
-- `config` contains settings from YAML
-- `builder` is the agent framework
-- `yield FunctionInfo` makes tools available to agent
-- Tool descriptions come from docstrings (LLM reads these!)
-
-### 2. Config Wiring (`config.yml`)
+**`config.yml` - Agent Brain**
 
 ```yaml
+functions:          # Tools available to agent
+  review_pr:
+    _type: review_pr
+    github_token: ${GITHUB_TOKEN}
+    repo_owner: anthropics
+    repo_name: claude-code
+
+llms:              # Which LLM to use
+  agent_llm:
+    _type: nim
+    model_name: nvidia/nemotron-3.5-lightning-30b-a3b
+
+workflow:          # How agent reasons
+  _type: react_agent
+  system_prompt: |
+    You are an expert code reviewer and fixer...
+```
+
+## Usage Patterns
+
+### Pattern 1: Security Review Only
+
+```bash
+nat run --config_file configs/config.yml \
+  --input "Review PR #10 focusing on security vulnerabilities"
+```
+
+Agent will:
+1. Get PR info
+2. Examine all files
+3. Post security-focused comments
+4. NOT modify code
+
+### Pattern 2: Auto-Fix Simple Issues
+
+```bash
+nat run --config_file configs/config.yml \
+  --input "Review PR #10 and fix style/formatting issues"
+```
+
+Agent will:
+1. Review code
+2. Identify formatting issues
+3. Clone repo
+4. Fix formatting
+5. Commit changes
+
+### Pattern 3: Deep Review + Fixes
+
+```bash
+nat run --config_file configs/config.yml \
+  --input "Thoroughly review PR #10. Identify all issues and apply fixes."
+```
+
+Agent will:
+1. Deep analysis
+2. Find bugs, security issues, performance problems
+3. Fix what it can
+4. Post comments on complex issues
+
+## Key Concepts
+
+### 1. Tools Are Functions
+
+Each tool is an async function. The agent doesn't know HOW it works, only:
+- Name: `get_pr_info`
+- Description: "Get PR details: title, author, description..."
+- Parameters: `pr_number`
+- Returns: String with result
+
+### 2. Descriptions Drive Behavior
+
+```python
+async def _get_diff(pr_number: int, filename: str) -> str:
+    """Get the actual code diff for a specific file in the PR."""
+    return tools.get_file_diff(pr_number, filename)
+```
+
+The LLM reads the docstring to decide WHEN to use this tool.
+
+### 3. Two Types of Operations
+
+**Read Operations** (GitHub API):
+- Call REST API
+- Stateless
+- Return formatted strings
+
+**Write Operations** (Git CLI):
+- Use subprocess
+- Maintain local clone
+- Persist across tool calls
+- Changes pushed to GitHub
+
+### 4. The Config Drives Everything
+
+Change behavior without code changes:
+```yaml
+# Change system prompt → agent thinks differently
+system_prompt: |
+  Focus ONLY on critical security issues.
+
+# Change LLM → different reasoning
+llms:
+  agent_llm:
+    _type: openai
+    model_name: gpt-4
+
+# Change repo → reviews different project
 functions:
-  review_pr:              # Tool group name
-    _type: review_pr      # Matches @register_function name
-    pr_data_dir: ...      # Passed to ReviewPRConfig
-
-workflow:
-  _type: react_agent      # ReAct reasoning pattern
-  tool_names: [review_pr] # Which tools to use
+  review_pr:
+    repo_owner: different-org
+    repo_name: different-repo
 ```
-
-**Config flow:**
-1. Config loads `review_pr` tool
-2. Calls `ReviewPRConfig` with `pr_data_dir`
-3. Passes config to `review_pr()` function
-4. Function yields tools
-5. Workflow makes tools available
-
-## Understanding the Code
-
-### 1. Tool Registration (`review_pr.py`)
-
-```python
-@register_function(config_type=ReviewPRConfig)
-async def review_pr(config, builder):
-    tools = GitHubTools(config.github_token, config.repo_owner, config.repo_name)
-    
-    # Read tool example
-    async def _get_pr_info(pr_number: int) -> str:
-        """Get PR details: title, author, description, and file statistics."""
-        return tools.get_pr_info(pr_number)
-    
-    # Write tool example
-    async def _write(filepath: str, content: str) -> str:
-        """Write code/text to a file in the cloned repo. Use relative paths like 'src/main.py'."""
-        return tools.write_file(filepath, content)
-    
-    # Register tools
-    yield FunctionInfo.from_fn(_get_pr_info, description=_get_pr_info.__doc__)
-    yield FunctionInfo.from_fn(_write, description=_write.__doc__)
-```
-
-**Key points:**
-- Tool descriptions (docstrings) are read by the LLM to decide when to call each tool
-- Read tools call GitHub API with authentication
-- Write tools use git CLI (subprocess) to clone, checkout, edit, and push
-- All tools are async functions
-
-### 2. The Git Workflow (Write Tools)
-
-When the agent decides to fix code, it:
-
-```python
-# 1. Clone the repo
-clone() → subprocess.run(["git", "clone", url, repo_path])
-
-# 2. Check out the PR branch
-checkout(42) → subprocess.run(["git", "checkout", branch_name])
-
-# 3. Write corrected code
-write("src/main.py", new_code) → file.write_text(new_code)
-
-# 4. Commit and push
-commit("Fix security bug") → 
-  subprocess.run(["git", "add", "-A"])
-  subprocess.run(["git", "commit", "-m", message])
-  subprocess.run(["git", "push"])
-```
-
-The code gets added to the PR branch automatically.
 
 ## Extending the Agent
 
 ### Add a New Tool
 
-1. **Define the tool function** in `review_pr.py`:
+1. Add method to `GitHubTools` class:
 ```python
-async def _estimate_review_time(pr_number: int) -> str:
-    """Estimate how long this PR will take to review."""
-    return tools.estimate_time(pr_number)
+def get_commit_info(self, pr_number: int, commit_sha: str) -> str:
+    data = self._get(f"/repos/.../commits/{commit_sha}")
+    return f"Commit: {data['message']}"
 ```
 
-2. **Register it**:
+2. Create async wrapper in `review_pr()`:
 ```python
-yield FunctionInfo.from_fn(_estimate_review_time, 
-                            description=_estimate_review_time.__doc__)
+async def _get_commit(pr_number: int, commit_sha: str) -> str:
+    """Get info about a specific commit in the PR."""
+    return tools.get_commit_info(pr_number, commit_sha)
+
+yield FunctionInfo.from_fn(_get_commit, description=_get_commit.__doc__)
 ```
 
-3. **Update config** (optional):
-```yaml
-system_prompt: |
-  You now have access to review time estimates...
-```
+3. Mention in system_prompt so agent knows to use it.
 
-### Change the Review Logic
+### Change Agent Behavior
 
 Edit `system_prompt` in `config.yml`:
 ```yaml
 system_prompt: |
-  Focus only on security issues, ignore style.
-  Be very strict about SQL injection vulnerabilities.
+  Focus on: performance optimization, not style issues.
+  Suggest concrete improvements for every finding.
+  Always check for O(n²) algorithms.
 ```
 
-No code changes needed!
-
-### Use a Different LLM
+### Use Different LLM
 
 ```yaml
 llms:
   agent_llm:
-    _type: openai          # Change from 'nim' to 'openai'
+    _type: openai
     model_name: gpt-4
     api_key: ${OPENAI_API_KEY}
 ```
 
-## How It Uses GitHub API
+## Limitations & Improvements
 
-The agent calls the real GitHub API v3:
+### Current Limitations
 
-```python
-# Get open PRs
-GET /repos/{owner}/{repo}/pulls?state=open
+- Line-level comments simplified (all at line 1)
+- No merge conflict handling
+- No test execution
+- Simple rollback if issues
+- GitHub token must have repo write access
 
-# Get PR details
-GET /repos/{owner}/{repo}/pulls/{number}
+### Future Improvements
 
-# Get PR files
-GET /repos/{owner}/{repo}/pulls/{number}/files
-
-# Post review comment
-POST /repos/{owner}/{repo}/pulls/{number}/comments
-```
-
-Each request includes the GitHub token in the Authorization header for authentication.
-
-## Learning Outcomes
-
-After building this agent, you understand:
-
-✅ How to register tools with NeMo Agent Toolkit  
-✅ How ReAct agents reason and take actions  
-✅ How to configure agents with YAML  
-✅ How tool descriptions guide agent behavior  
-✅ How to structure async tool functions  
-✅ How to handle tool outputs  
-✅ How to extend agents with new tools  
-✅ How to swap LLMs and prompts  
-✅ How agents can read AND write code  
-✅ How to integrate GitHub API + git CLI  
-✅ How to let agents automatically commit changes  
-✅ How to design multi-step workflows (read → analyze → fix → commit)  
+- [ ] Semantic code analysis (understand intent, not just syntax)
+- [ ] Auto-generate tests for changes
+- [ ] Parallel reviews (multiple agents on same PR)
+- [ ] Learn from feedback (which fixes get accepted?)
+- [ ] Deploy as GitHub App (automated on new PRs)
+- [ ] Conflict resolution
+- [ ] Run test suite before committing
 
 ## Troubleshooting
 
-### Agent doesn't use a tool
-- Check tool description (in docstring)
-- Verify tool is in `tool_names` in config
-- Check system prompt mentions the capability
-
-### Git operations fail (clone/checkout/push)
-- Ensure git is installed: `git --version`
-- Check GITHUB_TOKEN has repo access (need `repo` scope)
-- Verify repo exists and is accessible
-- Check git config: `git config --global user.email "you@example.com"`
-
-### Write tool doesn't commit
-- Check git is initialized: `ls -la /tmp/repo_name/.git`
-- Verify branch was checked out: `git status` in `/tmp/repo_name`
-- Check commit message isn't empty
-
-### API rate limits
-- GitHub allows 5000 API calls/hour
-- Add delays between agent calls if hitting limits
-- Use personal token instead of OAuth token
-
-### Wrong LLM response
-- Adjust `temperature` in config (0 = deterministic, 1 = creative)
-- Update `system_prompt` with clearer instructions
-- Try a different model
-
-## Common Workflows
-
-**Review and Suggest**
+### "Token not found" error
 ```bash
-nat run --config_file github_pr_review_agent/configs/config.yml \
-  --input "Review PR #10. Identify 3 main issues and suggest fixes."
-# Agent reviews, posts comments (no code changes)
+# Make sure environment variable is set
+export GITHUB_TOKEN="ghp_xxx"
+echo $GITHUB_TOKEN  # Should print your token
 ```
 
-**Review and Auto-Fix**
-```bash
-nat run --config_file github_pr_review_agent/configs/config.yml \
-  --input "Review PR #10 and automatically fix all issues you find."
-# Agent reviews, writes code, commits changes
-```
+### "Repository not found"
+- Check `repo_owner` and `repo_name` in config.yml
+- Verify token has access to that repo
+- Try: `git clone https://token@github.com/owner/repo.git`
 
-**Fix Specific Issue**
-```bash
-nat run --config_file github_pr_review_agent/configs/config.yml \
-  --input "Fix the missing error handling in PR #10."
-# Agent identifies and fixes, adds test cases
-```
+### "Failed to push"
+- Check git config: `git config --global user.email "email@example.com"`
+- Check branch exists locally: `cd /tmp/repo_name && git branch`
+- Check token has write access
+
+### Agent doesn't write code
+- Check system_prompt mentions "fix" or "write"
+- Verify `_write` and `_commit` tools are registered
+- Check agent output for "Action: write" or "Action: commit"
+
+### Changes don't appear on GitHub
+- Check git push succeeded: `✓ Committed and pushed`
+- Verify `/tmp/repo_name` has the changes
+- Check GitHub PR branch for new commit
+
+## Learning Outcomes
+
+After studying this agent, you understand:
+
+✅ How agents call tools in a reasoning loop  
+✅ How tool descriptions guide agent behavior  
+✅ How to integrate GitHub API + Git CLI  
+✅ How to structure async tool functions  
+✅ How configuration drives agent behavior  
+✅ How agents can write code and commit changes  
+✅ How ReAct (Reasoning + Acting) patterns work  
+✅ How to extend agents with new capabilities  
+
+## Examples
+
+### Real-World Use Cases
+
+1. **Automated Security Scanning**
+   - Review all PRs for SQL injection, XSS
+   - Suggest fixes
+   - Auto-fix common patterns
+
+2. **Code Quality Enforcement**
+   - Check for proper error handling
+   - Verify test coverage
+   - Fix formatting issues
+
+3. **Performance Analysis**
+   - Detect O(n²) algorithms
+   - Suggest optimizations
+   - Apply common speedups
+
+4. **Dependency Updates**
+   - Review version bumps
+   - Check for breaking changes
+   - Update code if needed
 
 ## Next Steps
 
-1. **Better code analysis**: Add semantic understanding (AST parsing, linting)
-2. **Test suite generation**: Auto-generate tests for changes
-3. **Conflict handling**: Handle merge conflicts intelligently
-4. **Rollback capability**: Revert commits if tests fail
-5. **Multi-agent reviews**: Different agents for security, performance, style
-6. **Feedback loop**: Learn from accepted/rejected fixes
-7. **Production bot**: Deploy as a GitHub App
+1. **Run on your own repo**: Update config.yml with your GitHub org
+2. **Customize the prompt**: Adjust system_prompt for your needs
+3. **Add tools**: Implement new capabilities
+4. **Deploy as bot**: Make it run automatically on new PRs
+
+## References
+
+- [NeMo Agent Toolkit Docs](https://docs.nvidia.com/nemo/agent-toolkit/)
+- [GitHub API Docs](https://docs.github.com/en/rest)
+- [Git Documentation](https://git-scm.com/doc)
+- [ReAct Agent Pattern](https://arxiv.org/abs/2210.03629)
 
 ---
 
-**Happy reviewing and fixing! 🚀**
+**Created**: October 2024  
+**Status**: Ready for production  
+**License**: Educational
+
+Happy reviewing! 🚀
