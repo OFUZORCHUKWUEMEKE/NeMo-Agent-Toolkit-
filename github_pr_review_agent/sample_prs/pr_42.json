@@ -1,0 +1,34 @@
+{
+  "number": 42,
+  "title": "Add user authentication module",
+  "author": "alice",
+  "description": "Implements JWT-based authentication for API endpoints. Adds login/logout flows and token validation middleware.",
+  "additions": 320,
+  "deletions": 45,
+  "files": [
+    {
+      "filename": "src/auth/jwt_handler.py",
+      "additions": 150,
+      "deletions": 0,
+      "patch": "--- a/src/auth/jwt_handler.py\n+++ b/src/auth/jwt_handler.py\n@@ -0,0 +1,50 @@\n+import jwt\n+from datetime import datetime, timedelta\n+from typing import Optional\n+\n+class JWTHandler:\n+    def __init__(self, secret_key: str):\n+        self.secret_key = secret_key\n+    \n+    def encode_token(self, user_id: str, expires_in: int = 3600) -> str:\n+        payload = {\n+            'user_id': user_id,\n+            'exp': datetime.utcnow() + timedelta(seconds=expires_in)\n+        }\n+        return jwt.encode(payload, self.secret_key, algorithm='HS256')\n+    \n+    def decode_token(self, token: str) -> Optional[dict]:\n+        try:\n+            return jwt.decode(token, self.secret_key, algorithms=['HS256'])\n+        except jwt.InvalidTokenError:\n+            return None"
+    },
+    {
+      "filename": "src/middleware/auth_middleware.py",
+      "additions": 80,
+      "deletions": 0,
+      "patch": "--- a/src/middleware/auth_middleware.py\n+++ b/src/middleware/auth_middleware.py\n@@ -0,0 +1,25 @@\n+from flask import request, abort\n+from src.auth.jwt_handler import JWTHandler\n+\n+def require_auth(f):\n+    def wrapper(*args, **kwargs):\n+        token = request.headers.get('Authorization')\n+        if not token:\n+            abort(401)\n+        jwt_handler = JWTHandler('secret')\n+        user = jwt_handler.decode_token(token)\n+        if not user:\n+            abort(401)\n+        return f(*args, **kwargs)\n+    return wrapper"
+    },
+    {
+      "filename": "tests/test_auth.py",
+      "additions": 90,
+      "deletions": 0,
+      "patch": "--- a/tests/test_auth.py\n+++ b/tests/test_auth.py\n@@ -0,0 +1,30 @@\n+import pytest\n+from src.auth.jwt_handler import JWTHandler\n+\n+def test_encode_decode():\n+    handler = JWTHandler('test-secret')\n+    token = handler.encode_token('user123')\n+    decoded = handler.decode_token(token)\n+    assert decoded['user_id'] == 'user123'\n+\n+def test_invalid_token():\n+    handler = JWTHandler('test-secret')\n+    result = handler.decode_token('invalid-token')\n+    assert result is None"
+    },
+    {
+      "filename": "requirements.txt",
+      "additions": 1,
+      "deletions": 0,
+      "patch": "--- a/requirements.txt\n+++ b/requirements.txt\n@@ -10,3 +10,4 @@\n flask==2.3.0\n pydantic==1.10.0\n+PyJWT==2.8.0"
+    }
+  ]
+}

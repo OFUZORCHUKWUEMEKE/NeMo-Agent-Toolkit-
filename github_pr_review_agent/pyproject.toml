@@ -1,0 +1,20 @@
+[build-system]
+requires = ["setuptools>=45", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "github-pr-review-agent"
+version = "0.1.0"
+description = "A GitHub PR review agent built with NeMo Agent Toolkit"
+authors = [{name = "Your Name", email = "your.email@example.com"}]
+requires-python = ">=3.10"
+dependencies = [
+    "nemo-agent-toolkit",
+    "pydantic>=2.0",
+]
+
+[tool.setuptools]
+packages = ["github_pr_review_agent"]
+
+[tool.setuptools.package-dir]
+"" = "src"
